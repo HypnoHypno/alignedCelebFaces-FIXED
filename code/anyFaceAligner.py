@@ -3,7 +3,7 @@ import numpy as np
 import os
 
 from constants import *
-from scipy import misc
+from PIL import Image
 from skimage import transform
 
 DESIRED_X = 32
@@ -40,45 +40,47 @@ for file_name in extra_folder_contents:
     image_face_info = face_recognition.load_image_file(image_file)
     face_landmarks = face_recognition.face_landmarks(image_face_info)
 
-    image_numpy = misc.imread(image_file)
-    colorAmount = 0
-    imageSaved = False
-    if len(image_numpy.shape) == 3:
-        nR = get_norm(image_numpy[:, :, 0])
-        nG = get_norm(image_numpy[:, :, 1])
-        nB = get_norm(image_numpy[:, :, 2])
-        colorAmount = np.mean(np.square(nR - nG)) + np.mean(np.square(nR - nB)) + np.mean(np.square(nG - nB))
-    # We need there to only be one face in the image, AND we need it to be a colored image.
-    if len(face_landmarks) == 1 and colorAmount >= 0.04:
-        leftEyePosition = get_avg(face_landmarks[0], 'left_eye')
-        rightEyePosition = get_avg(face_landmarks[0], 'right_eye')
-        nosePosition = get_avg(face_landmarks[0], 'nose_tip')
-        mouthPosition = get_avg(face_landmarks[0], 'bottom_lip')
+    with Image.open(image_file) as image:
+        image_numpy = np.array(image)
+        colorAmount = 0
+        imageSaved = False
+        if len(image_numpy.shape) == 3:
+            nR = get_norm(image_numpy[:, :, 0])
+            nG = get_norm(image_numpy[:, :, 1])
+            nB = get_norm(image_numpy[:, :, 2])
+            colorAmount = np.mean(np.square(nR - nG)) + np.mean(np.square(nR - nB)) + np.mean(np.square(nG - nB))
+        # We need there to only be one face in the image, AND we need it to be a colored image.
+        if len(face_landmarks) == 1 and colorAmount >= 0.04:
+            leftEyePosition = get_avg(face_landmarks[0], 'left_eye')
+            rightEyePosition = get_avg(face_landmarks[0], 'right_eye')
+            nosePosition = get_avg(face_landmarks[0], 'nose_tip')
+            mouthPosition = get_avg(face_landmarks[0], 'bottom_lip')
 
-        centralPosition = (leftEyePosition + rightEyePosition) / 2
+            centralPosition = (leftEyePosition + rightEyePosition) / 2
 
-        faceWidth = np.linalg.norm(leftEyePosition - rightEyePosition)
-        faceHeight = np.linalg.norm(centralPosition - mouthPosition)
-        if faceHeight * 0.7 <= faceWidth <= faceHeight * 1.5:
-            faceSize = (faceWidth + faceHeight) / 2
+            faceWidth = np.linalg.norm(leftEyePosition - rightEyePosition)
+            faceHeight = np.linalg.norm(centralPosition - mouthPosition)
+            if faceHeight * 0.7 <= faceWidth <= faceHeight * 1.5:
+                faceSize = (faceWidth + faceHeight) / 2
 
-            toScaleFactor = faceSize / DESIRED_SIZE
-            toXShift = (centralPosition[0])
-            toYShift = (centralPosition[1])
-            toRotateFactor = np.arctan2(rightEyePosition[1] - leftEyePosition[1],
-                                        rightEyePosition[0] - leftEyePosition[0])
+                toScaleFactor = faceSize / DESIRED_SIZE
+                toXShift = (centralPosition[0])
+                toYShift = (centralPosition[1])
+                toRotateFactor = np.arctan2(rightEyePosition[1] - leftEyePosition[1],
+                                            rightEyePosition[0] - leftEyePosition[0])
 
-            rotateT = transform.SimilarityTransform(scale=toScaleFactor, rotation=toRotateFactor,
-                                                    translation=(toXShift, toYShift))
-            moveT = transform.SimilarityTransform(scale=1, rotation=0, translation=(-DESIRED_X, -DESIRED_Y))
+                rotateT = transform.SimilarityTransform(scale=toScaleFactor, rotation=toRotateFactor,
+                                                        translation=(toXShift, toYShift))
+                moveT = transform.SimilarityTransform(scale=1, rotation=0, translation=(-DESIRED_X, -DESIRED_Y))
 
-            outputArr = transform.warp(image=image_numpy, inverse_map=(moveT + rotateT))[0:FINAL_IMAGE_HEIGHT,
-                        0:FINAL_IMAGE_WIDTH]
+                outputArr = transform.warp(image=image_numpy, inverse_map=(moveT + rotateT))[0:FINAL_IMAGE_HEIGHT,
+                            0:FINAL_IMAGE_WIDTH]
 
-            misc.imsave(aligned_file, outputArr)
-            imageSaved = True
-    if imageSaved:
-        print("Aligned face image ({}) saved successfully!".format(aligned_file))
-    else:
-        print("Face image ({}) failed. Either the image is grayscale, has no face, or the ratio of eye distance to "
-              "mouth distance isn't close enough to 1.".format(aligned_file))
+                output_image = Image.fromarray((outputArr * 255).astype(np.uint8))
+                output_image.save(aligned_file)
+                imageSaved = True
+        if imageSaved:
+            print("Aligned face image ({}) saved successfully!".format(aligned_file))
+        else:
+            print("Face image ({}) failed. Either the image is grayscale, has no face, or the ratio of eye distance to "
+                  "mouth distance isn't close enough to 1.".format(aligned_file))
