@@ -2,7 +2,9 @@ import html
 import math
 import pygame
 import numpy as np
-import tensorflow as tf
+import collections.abc as collections
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 
 from pygame.locals import *
 from scipy import misc
